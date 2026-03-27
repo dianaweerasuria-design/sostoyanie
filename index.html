@@ -575,6 +575,19 @@ canvas{display:block;width:100%}
       </div>
     </div>
 
+    <!-- API Key -->
+    <div class="card" style="animation:fadeUp .42s ease">
+      <div class="ch"><div class="ct">ИИ-анализ 🤖</div></div>
+      <div class="cb">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">Для работы ИИ-анализа нужен API-ключ Google Gemini. Получи бесплатно на <strong style="color:var(--text)">aistudio.google.com/api-keys</strong> → Create API key. Ключ начинается с <strong style="color:var(--text)">AIza...</strong> Хранится только в твоём браузере.</div>
+        <div style="display:flex;gap:7px;margin-bottom:8px">
+          <input class="add-inp" id="apiKeyInp" type="password" placeholder="AIzaSy..." style="flex:1;font-size:12px">
+          <button class="add-btn" onclick="saveApiKey()">Сохранить</button>
+        </div>
+        <div id="apiKeyStatus" style="font-size:11px;color:var(--muted)"></div>
+      </div>
+    </div>
+
     <!-- Data -->
     <div class="card" style="animation:fadeUp .45s ease">
       <div class="ch"><div class="ct">Данные</div></div>
@@ -860,6 +873,7 @@ async function saveEntry(){
   aiDiv.innerHTML='<div style="display:flex;align-items:center;gap:9px;color:var(--muted);font-size:12px"><span class="spin" style="color:var(--a3)"></span>ИИ анализирует...</div>';
 
   let analysis;
+  let aiError=null;
   try{
     const sys='Ты психологический ассистент. Анализируй запись о настроении и возвращай ТОЛЬКО JSON без markdown.\nФормат: {"score":число 1-10,"mood":"1-3 слова","tags":[{"text":"тег","type":"trigger|positive|neutral"}],"triggers":["строка"],"positives":["строка"],"insight":"одно тёплое личное наблюдение"}\nscore 1=очень плохо 10=отлично. tags максимум 5. insight конкретный.';
     const raw=await Promise.race([
@@ -868,6 +882,7 @@ async function saveEntry(){
     ]);
     analysis=JSON.parse(raw.replace(/```json|```/g,'').trim());
   }catch(e){
+    aiError=e.message||String(e);
     analysis=fallback(prompt,F.emo?F.emo.score:5,F.emo?F.emo.name:'');
   }
 
@@ -889,7 +904,7 @@ async function saveEntry(){
   addCrystals(reward);calcStreak();chkStreakMs(oldS);
   await chkGoal();chkAchs();await save();
 
-  showRes(aiDiv,analysis,reward);
+  showRes(aiDiv,analysis,reward,aiError);
   resetForm();
   renderStreakHero();renderCal();renderLevel();
   document.getElementById('abanner').style.display='none';
@@ -897,22 +912,47 @@ async function saveEntry(){
 }
 
 async function fetchAI(text,sys,maxTokens){
-  const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:maxTokens,system:sys,messages:[{role:'user',content:text}]})});
-  if(!r.ok)throw new Error('api '+r.status);
+  const apiKey=localStorage.getItem('mood_api_key')||'';
+  if(!apiKey)throw new Error('no key');
+  const url=`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+  const body={
+    contents:[{parts:[{text: sys+'\n\n'+text}]}],
+    generationConfig:{maxOutputTokens:maxTokens,temperature:0.7}
+  };
+  const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!r.ok){const e=await r.text();throw new Error('api '+r.status+' '+e);}
   const d=await r.json();
-  return d.content[0].text;
+  return d.candidates[0].content.parts[0].text;
+}
+function saveApiKey(){
+  const key=document.getElementById('apiKeyInp').value.trim();
+  if(!key){toast('Введи ключ');return;}
+  if(!key.startsWith('AIza')){toast('Ключ Gemini должен начинаться с AIza...');return;}
+  localStorage.setItem('mood_api_key',key);
+  document.getElementById('apiKeyInp').value='';
+  document.getElementById('apiKeyStatus').textContent='✅ Ключ сохранён';
+  document.getElementById('apiKeyStatus').style.color='var(--a3)';
+  toast('✅ API-ключ сохранён — ИИ теперь работает!');
+}
+function renderApiKeyStatus(){
+  const key=localStorage.getItem('mood_api_key');
+  const el=document.getElementById('apiKeyStatus');
+  if(!el)return;
+  if(key){el.textContent='✅ Ключ установлен ('+key.substring(0,12)+'…)';el.style.color='var(--a3)';}
+  else{el.textContent='⚠️ Ключ не установлен — ИИ работает в упрощённом режиме';el.style.color='var(--muted)';}
 }
 function fallback(text,bs,be){
-  let score=bs||5;const tags=be?[{text:be,type:'neutral'}]:[],trg=[],pos=[];
-  ['плохо','устала','тревог','грустн','раздраж','сложно','тяжело'].forEach(w=>{if(text&&text.toLowerCase().includes(w)){score=Math.max(score-1,1);trg.push(w);}});
-  ['хорошо','радост','вдохнов','спокой','отдохн'].forEach(w=>{if(text&&text.toLowerCase().includes(w)){score=Math.min(score+1,10);pos.push(w);}});
+  let score=bs||5;
+  const tags=be?[{text:be,type:'neutral'}]:[];
   const mm={Радость:'Радостное',Спокойствие:'Спокойное',Тревога:'Тревожное',Усталость:'Усталость',Грусть:'Грусть',Раздражение:'Раздражение',Вдохновение:'Вдохновение',Пусто:'Опустошение'};
-  return{score,mood:mm[be]||(score>6?'Хорошее':score>4?'Нейтральное':'Сложное'),tags,triggers:trg,positives:pos,insight:'Запись сохранена.'};
+  // minimal score adjustment without adding noisy tags
+  if(text){const l=text.toLowerCase();['плохо','тяжело','сложно','тревог','грустн'].forEach(w=>{if(l.includes(w))score=Math.max(score-1,1);});['хорошо','радост','вдохнов'].forEach(w=>{if(l.includes(w))score=Math.min(score+1,10);});}
+  return{score,mood:mm[be]||(score>6?'Хорошее':score>4?'Нейтральное':'Сложное'),tags,triggers:[],positives:[],insight:'Добавь API-ключ в Настройках → ИИ-анализ для получения полного анализа.'};
 }
-function showRes(div,a,reward){
+function showRes(div,a,reward,err){
   const c=a.score>=7?'var(--a3)':a.score>=4?'var(--accent)':'var(--a2)';
-  div.innerHTML=`<div class="abg">ИИ-анализ</div>
+  const errHtml=err?`<div style="font-size:11px;color:var(--a2);background:rgba(192,99,74,.08);border:1px solid rgba(192,99,74,.2);border-radius:8px;padding:7px 10px;margin-bottom:10px">⚠️ ИИ: ${err}</div>`:'';
+  div.innerHTML=`${errHtml}<div class="abg">ИИ-анализ</div>
     <div class="asb" style="color:${c}">${a.score}/10</div>
     <div class="aml">${a.mood}</div>
     <div class="atr">${(a.tags||[]).map(t=>`<span class="tag ${t.type}">${t.text}</span>`).join('')}</div>
@@ -1222,6 +1262,7 @@ function renderGP(){
 // ══════════════════════════════════
 function renderSettings(){
   document.getElementById('mycode').textContent=S.myCode;
+  renderApiKeyStatus();
   // Partner status
   const pconn=document.getElementById('pconnected');
   if(S.partnerCode){pconn.style.display='block';document.getElementById('ptmy').style.display='none';document.getElementById('ptjoin').style.display='none';}
