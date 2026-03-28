@@ -579,9 +579,9 @@ canvas{display:block;width:100%}
     <div class="card" style="animation:fadeUp .42s ease">
       <div class="ch"><div class="ct">ИИ-анализ 🤖</div></div>
       <div class="cb">
-        <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">Для ИИ-анализа нужен бесплатный ключ OpenRouter. Зарегистрируйся на <strong style="color:var(--text)">openrouter.ai</strong> → Keys → Create Key. Ключ начинается с <strong style="color:var(--text)">sk-or-...</strong> Бесплатно, хранится только в браузере.</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">Для ИИ-анализа нужен ключ Google AI. Зарегистрируйся на <strong style="color:var(--text)">aistudio.google.com</strong> → Get API key. Ключ начинается с <strong style="color:var(--text)">AIza...</strong> Хранится только в браузере.</div>
         <div style="display:flex;gap:7px;margin-bottom:8px">
-          <input class="add-inp" id="apiKeyInp" type="password" placeholder="sk-or-v1-..." style="flex:1;font-size:12px">
+          <input class="add-inp" id="apiKeyInp" type="password" placeholder="AIza..." style="flex:1;font-size:12px">
           <button class="add-btn" onclick="saveApiKey()">Сохранить</button>
         </div>
         <div id="apiKeyStatus" style="font-size:11px;color:var(--muted)"></div>
@@ -913,32 +913,24 @@ async function saveEntry(){
 async function fetchAI(text,sys,maxTokens){
   const apiKey=localStorage.getItem('mood_api_key')||'';
   if(!apiKey)throw new Error('no key');
-  const r=await fetch('https://openrouter.ai/api/v1/chat/completions',{
+  const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+apiKey,{
     method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      'Authorization':'Bearer '+apiKey,
-      'HTTP-Referer':'https://dianaweerasuria-design.github.io/sostoyanie/',
-      'X-Title':'Sostoyanie Mood Tracker'
-    },
+    headers:{'Content-Type':'application/json'},
     body:JSON.stringify({
-      model:'google/gemma-3-12b-it:free',
-      max_tokens:maxTokens,
-      messages:[
-        {role:'system',content:sys},
-        {role:'user',content:text}
-      ]
+      systemInstruction:{parts:[{text:sys}]},
+      contents:[{role:'user',parts:[{text}]}],
+      generationConfig:{maxOutputTokens:maxTokens}
     })
   });
   if(!r.ok){const e=await r.text();throw new Error('api '+r.status+' '+e);}
   const d=await r.json();
   if(d.error)throw new Error(d.error.message);
-  return d.choices[0].message.content;
+  return d.candidates[0].content.parts[0].text;
 }
 function saveApiKey(){
   const key=document.getElementById('apiKeyInp').value.trim();
   if(!key){toast('Введи ключ');return;}
-  if(!key.startsWith('sk-or-')){toast('Ключ OpenRouter начинается с sk-or-...');return;}
+  if(!key.startsWith('AIza')){toast('Ключ Google AI начинается с AIza...');return;}
   localStorage.setItem('mood_api_key',key);
   document.getElementById('apiKeyInp').value='';
   document.getElementById('apiKeyStatus').textContent='✅ Ключ сохранён';
