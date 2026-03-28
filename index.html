@@ -788,23 +788,9 @@ function updIsl(el){
   document.getElementById('sval').textContent=el.value;
   F.intensity=+el.value;
 }
-let txtDebounce=null;
 function onTxt(){
   F.text=document.getElementById('ftxt').value;
   updSave();
-  clearTimeout(txtDebounce);
-  if(F.text.trim().length>12)txtDebounce=setTimeout(suggestTags,1600);
-}
-async function suggestTags(){
-  const t=F.text.trim();if(!t||t.length<15)return;
-  try{
-    const r=await fetchAI(t,'Из текста о настроении вытащи 3-5 коротких тегов. Только JSON: {"tags":["тег1","тег2"]}. Теги на русском, 1-2 слова.',200);
-    const parsed=JSON.parse(r.replace(/```json|```/g,'').trim());
-    const wrap=document.getElementById('ast');
-    if(!parsed.tags||!parsed.tags.length){wrap.style.display='none';return;}
-    wrap.style.display='flex';
-    wrap.innerHTML='<span style="font-size:10px;color:var(--muted);width:100%">ИИ заметил:</span>'+parsed.tags.map(t=>`<span class="ast-t" onclick="this.classList.toggle('ok')">${esc(t)}</span>`).join('');
-  }catch(e){}
 }
 function onSlp(){
   const b=document.getElementById('sbed').value,w=document.getElementById('swake').value;
