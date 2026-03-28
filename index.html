@@ -579,9 +579,9 @@ canvas{display:block;width:100%}
     <div class="card" style="animation:fadeUp .42s ease">
       <div class="ch"><div class="ct">ИИ-анализ 🤖</div></div>
       <div class="cb">
-        <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">Для работы ИИ-анализа нужен API-ключ Google Gemini. Получи бесплатно на <strong style="color:var(--text)">aistudio.google.com/api-keys</strong> → Create API key. Ключ начинается с <strong style="color:var(--text)">AIza...</strong> Хранится только в твоём браузере.</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">Для ИИ-анализа нужен бесплатный ключ OpenRouter. Зарегистрируйся на <strong style="color:var(--text)">openrouter.ai</strong> → Keys → Create Key. Ключ начинается с <strong style="color:var(--text)">sk-or-...</strong> Бесплатно, хранится только в браузере.</div>
         <div style="display:flex;gap:7px;margin-bottom:8px">
-          <input class="add-inp" id="apiKeyInp" type="password" placeholder="AIzaSy..." style="flex:1;font-size:12px">
+          <input class="add-inp" id="apiKeyInp" type="password" placeholder="sk-or-v1-..." style="flex:1;font-size:12px">
           <button class="add-btn" onclick="saveApiKey()">Сохранить</button>
         </div>
         <div id="apiKeyStatus" style="font-size:11px;color:var(--muted)"></div>
@@ -685,7 +685,8 @@ let S = {
 
 // Form state
 let F = { emo:null, intensity:5, text:'', ctx:{sleepBed:null,sleepWake:null,sleepHours:null,places:[],weather:null,activities:[],social:[],body:[]} };
-let saving=false, weekOff=0, editCat='activities', txtTimer=null;
+let saving=false, weekOff=0, txtTimer=null;
+function esc(s){const d=document.createElement('div');d.textContent=String(s??'');return d.innerHTML;}
 
 // ══════════════════════════════════
 // STORAGE
@@ -802,7 +803,7 @@ async function suggestTags(){
     const wrap=document.getElementById('ast');
     if(!parsed.tags||!parsed.tags.length){wrap.style.display='none';return;}
     wrap.style.display='flex';
-    wrap.innerHTML='<span style="font-size:10px;color:var(--muted);width:100%">ИИ заметил:</span>'+parsed.tags.map(t=>`<span class="ast-t" onclick="this.classList.toggle('ok')">${t}</span>`).join('');
+    wrap.innerHTML='<span style="font-size:10px;color:var(--muted);width:100%">ИИ заметил:</span>'+parsed.tags.map(t=>`<span class="ast-t" onclick="this.classList.toggle('ok')">${esc(t)}</span>`).join('');
   }catch(e){}
 }
 function onSlp(){
@@ -873,7 +874,6 @@ async function saveEntry(){
   aiDiv.innerHTML='<div style="display:flex;align-items:center;gap:9px;color:var(--muted);font-size:12px"><span class="spin" style="color:var(--a3)"></span>ИИ анализирует...</div>';
 
   let analysis;
-  let aiError=null;
   try{
     const sys='Ты психологический ассистент. Анализируй запись о настроении и возвращай ТОЛЬКО JSON без markdown.\nФормат: {"score":число 1-10,"mood":"1-3 слова","tags":[{"text":"тег","type":"trigger|positive|neutral"}],"triggers":["строка"],"positives":["строка"],"insight":"одно тёплое личное наблюдение"}\nscore 1=очень плохо 10=отлично. tags максимум 5. insight конкретный.';
     const raw=await Promise.race([
@@ -882,12 +882,12 @@ async function saveEntry(){
     ]);
     analysis=JSON.parse(raw.replace(/```json|```/g,'').trim());
   }catch(e){
-    aiError=e.message||String(e);
-    analysis=fallback(prompt,F.emo?F.emo.score:5,F.emo?F.emo.name:'');
+    const noKey=e.message==='no key'||!localStorage.getItem('mood_api_key');
+    analysis=fallback(prompt,F.emo?F.intensity:5,F.emo?F.emo.name:'',noKey);
   }
 
   if(hm&&!ht){
-    analysis.score=F.emo.score;
+    analysis.score=F.intensity;
     const mm={Радость:'Радостное',Спокойствие:'Спокойное',Тревога:'Тревожное',Усталость:'Усталость',Грусть:'Грусть',Раздражение:'Раздражение',Вдохновение:'Вдохновение',Пусто:'Опустошение'};
     analysis.mood=mm[F.emo.name]||F.emo.name;
   }
@@ -904,7 +904,7 @@ async function saveEntry(){
   addCrystals(reward);calcStreak();chkStreakMs(oldS);
   await chkGoal();chkAchs();await save();
 
-  showRes(aiDiv,analysis,reward,aiError);
+  showRes(aiDiv,analysis,reward);
   resetForm();
   renderStreakHero();renderCal();renderLevel();
   document.getElementById('abanner').style.display='none';
@@ -914,20 +914,32 @@ async function saveEntry(){
 async function fetchAI(text,sys,maxTokens){
   const apiKey=localStorage.getItem('mood_api_key')||'';
   if(!apiKey)throw new Error('no key');
-  const url=`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-  const body={
-    contents:[{parts:[{text: sys+'\n\n'+text}]}],
-    generationConfig:{maxOutputTokens:maxTokens,temperature:0.7}
-  };
-  const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const r=await fetch('https://openrouter.ai/api/v1/chat/completions',{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'Authorization':'Bearer '+apiKey,
+      'HTTP-Referer':'https://dianaweerasuria-design.github.io/sostoyanie/',
+      'X-Title':'Sostoyanie Mood Tracker'
+    },
+    body:JSON.stringify({
+      model:'meta-llama/llama-3.3-8b-instruct:free',
+      max_tokens:maxTokens,
+      messages:[
+        {role:'system',content:sys},
+        {role:'user',content:text}
+      ]
+    })
+  });
   if(!r.ok){const e=await r.text();throw new Error('api '+r.status+' '+e);}
   const d=await r.json();
-  return d.candidates[0].content.parts[0].text;
+  if(d.error)throw new Error(d.error.message);
+  return d.choices[0].message.content;
 }
 function saveApiKey(){
   const key=document.getElementById('apiKeyInp').value.trim();
   if(!key){toast('Введи ключ');return;}
-  if(!key.startsWith('AIza')){toast('Ключ Gemini должен начинаться с AIza...');return;}
+  if(!key.startsWith('sk-or-')){toast('Ключ OpenRouter начинается с sk-or-...');return;}
   localStorage.setItem('mood_api_key',key);
   document.getElementById('apiKeyInp').value='';
   document.getElementById('apiKeyStatus').textContent='✅ Ключ сохранён';
@@ -941,22 +953,25 @@ function renderApiKeyStatus(){
   if(key){el.textContent='✅ Ключ установлен ('+key.substring(0,12)+'…)';el.style.color='var(--a3)';}
   else{el.textContent='⚠️ Ключ не установлен — ИИ работает в упрощённом режиме';el.style.color='var(--muted)';}
 }
-function fallback(text,bs,be){
+function fallback(text,bs,be,noKey=false){
   let score=bs||5;
   const tags=be?[{text:be,type:'neutral'}]:[];
   const mm={Радость:'Радостное',Спокойствие:'Спокойное',Тревога:'Тревожное',Усталость:'Усталость',Грусть:'Грусть',Раздражение:'Раздражение',Вдохновение:'Вдохновение',Пусто:'Опустошение'};
   // minimal score adjustment without adding noisy tags
   if(text){const l=text.toLowerCase();['плохо','тяжело','сложно','тревог','грустн'].forEach(w=>{if(l.includes(w))score=Math.max(score-1,1);});['хорошо','радост','вдохнов'].forEach(w=>{if(l.includes(w))score=Math.min(score+1,10);});}
-  return{score,mood:mm[be]||(score>6?'Хорошее':score>4?'Нейтральное':'Сложное'),tags,triggers:[],positives:[],insight:'Добавь API-ключ в Настройках → ИИ-анализ для получения полного анализа.'};
+  const insight=noKey
+    ?'Добавь API-ключ в Настройках → ИИ-анализ для полного разбора.'
+    :'ИИ-анализ временно недоступен — проверь ключ и соединение, попробуй ещё раз.';
+  return{score,mood:mm[be]||(score>6?'Хорошее':score>4?'Нейтральное':'Сложное'),tags,triggers:[],positives:[],insight};
 }
-function showRes(div,a,reward,err){
+function showRes(div,a,reward){
   const c=a.score>=7?'var(--a3)':a.score>=4?'var(--accent)':'var(--a2)';
-  const errHtml=err?`<div style="font-size:11px;color:var(--a2);background:rgba(192,99,74,.08);border:1px solid rgba(192,99,74,.2);border-radius:8px;padding:7px 10px;margin-bottom:10px">⚠️ ИИ: ${err}</div>`:'';
-  div.innerHTML=`${errHtml}<div class="abg">ИИ-анализ</div>
-    <div class="asb" style="color:${c}">${a.score}/10</div>
-    <div class="aml">${a.mood}</div>
-    <div class="atr">${(a.tags||[]).map(t=>`<span class="tag ${t.type}">${t.text}</span>`).join('')}</div>
-    <div class="ai-txt">${a.insight}</div>
+  const safeType=tp=>['trigger','positive','neutral'].includes(tp)?tp:'neutral';
+  div.innerHTML=`<div class="abg">ИИ-анализ</div>
+    <div class="asb" style="color:${c}">${esc(a.score)}/10</div>
+    <div class="aml">${esc(a.mood)}</div>
+    <div class="atr">${(a.tags||[]).map(t=>`<span class="tag ${safeType(t.type)}">${esc(t.text)}</span>`).join('')}</div>
+    <div class="ai-txt">${esc(a.insight)}</div>
     <div class="rl">🎉 +${reward} 💎 добавлено!</div>`;
   div.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
@@ -964,7 +979,7 @@ function resetForm(){
   F={emo:null,intensity:5,text:'',ctx:{sleepBed:null,sleepWake:null,sleepHours:null,places:[],weather:null,activities:[],social:[],body:[]}};
   document.querySelectorAll('.eb,.wb,.tg,.pbtn').forEach(b=>b.classList.remove('sel'));
   document.getElementById('ftxt').value='';
-  document.getElementById('isl').value=5;document.getElementById('isl').style.setProperty('--pct','44%');
+  const islEl=document.getElementById('isl');islEl.value=5;updIsl(islEl);
   document.getElementById('sval').textContent='5';
   document.getElementById('sbed').value='';document.getElementById('swake').value='';
   document.getElementById('shv').textContent='—';
@@ -994,8 +1009,20 @@ function calcStreak(){
   const now=new Date(),ts=new Date(now.getFullYear(),now.getMonth(),now.getDate()).getTime();
   const days=[...new Set(S.entries.map(e=>{const d=new Date(e.ts);return new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();}))].sort((a,b)=>b-a);
   const gap=Math.floor((ts-days[0])/86400000);
-  if(gap>1&&S.freeze3<=0&&S.freeze1<=0){S.streak=0;return;}
-  if(gap>3){S.streak=0;return;}
+  const missed=gap>1?gap-1:0; // пропущенных дней (gap=1 значит вчера — норм)
+  if(missed>0){
+    const avail=S.freeze1+(S.freeze3*3);
+    if(missed>avail){S.streak=0;return;}
+    // расходуем заморозку один раз на каждый новый gap-событие
+    if(S._lastFreezeDay!==days[0]){
+      S._lastFreezeDay=days[0];
+      let rem=missed;
+      while(rem>0&&S.freeze1>0){S.freeze1--;rem--;}
+      while(rem>0&&S.freeze3>0){S.freeze3--;rem-=3;}
+      if(S.freeze3<0)S.freeze3=0; // если потратили с запасом
+      renderStreakHero(); // обновить слоты
+    }
+  }
   let s=1;for(let i=1;i<days.length;i++){if((days[i-1]-days[i])/86400000<=1)s++;else break;}
   S.streak=s;S.maxStreak=Math.max(S.maxStreak,s);
 }
@@ -1005,7 +1032,9 @@ function renderStreakHero(){
   document.getElementById('snum').textContent=s;
   document.getElementById('sfire').textContent=s>=30?'🔥🔥':s>=7?'🔥':'🕯️';
   const sl=document.getElementById('fzslots');sl.innerHTML='';
-  for(let i=0;i<3;i++){const d=document.createElement('div');d.className='fz-s'+(i<S.freeze1+S.freeze3?' on':'');d.textContent=i<S.freeze3?'❄️':i<S.freeze1+S.freeze3?'🧊':'';sl.appendChild(d);}
+  const f3days=S.freeze3*3,total=S.freeze1+f3days,show=Math.max(3,Math.min(total,9));
+  for(let i=0;i<show;i++){const d=document.createElement('div');const on=i<total;d.className='fz-s'+(on?' on':'');d.textContent=on?(i<f3days?'❄️':'🧊'):'';sl.appendChild(d);}
+  if(total>9){const more=document.createElement('div');more.style.cssText='font-size:9px;color:rgba(245,240,232,.45);align-self:center;margin-left:2px';more.textContent='+' +(total-9);sl.appendChild(more);}
 }
 function updPartnerUI(){
   const box=document.getElementById('pbox');
@@ -1165,7 +1194,7 @@ async function genWkSum(){
   try{
     const raw=await Promise.race([fetchAI('Записи:\n'+txt,sys,1200),new Promise((_,r)=>setTimeout(()=>r(new Error('to')),15000))]);
     sum=JSON.parse(raw.replace(/```json|```/g,'').trim());
-  }catch(e){const avg=ents.reduce((a,b)=>a+b.score,0)/ents.length;sum={avgScore:avg.toFixed(1),trend:'stable',trendComment:'офлайн режим',whatWasGood:'Ты делала записи — это само по себе важно.',whatWasHard:'Включи интернет для полного анализа.',bigInsight:'Сам факт наблюдения за собой — забота о себе.',nextWeekTip:'Продолжай делать записи.'};}
+  }catch(e){const avg=ents.reduce((a,b)=>a+b.score,0)/ents.length;const noKey=e.message==='no key'||!localStorage.getItem('mood_api_key');sum={avgScore:avg.toFixed(1),trend:'stable',trendComment:noKey?'нет ключа':'ошибка запроса',whatWasGood:'Ты делала записи — это само по себе важно.',whatWasHard:noKey?'Добавь API-ключ в Настройках → ИИ-анализ для полного итога.':'Не удалось получить анализ — проверь ключ и соединение.',bigInsight:'Сам факт наблюдения за собой — забота о себе.',nextWeekTip:'Продолжай делать записи.'};}
   sum.ts=Date.now();S.weeklySummaries['wsum_'+start]=sum;chkAchs();await save();
   document.getElementById('wkbdy').innerHTML=buildSumHTML(sum);document.getElementById('wkst').textContent='только что';
 }
@@ -1173,11 +1202,11 @@ function buildSumHTML(s){
   const c=s.avgScore>=7?'var(--a3)':s.avgScore>=4?'var(--accent)':'var(--a2)';
   const dc=s.trend==='up'?'up':s.trend==='down'?'down':'same';
   const dl=s.trend==='up'?'↑ растёт':s.trend==='down'?'↓ падает':'→ стабильно';
-  return`<div><div class="wksec"><div class="wksc"><div class="wksn" style="color:${c}">${Number(s.avgScore).toFixed(1)}</div><div class="wksl">среднее</div><div class="wkd ${dc}">${dl}</div></div><div style="font-size:11px;color:var(--muted)">${s.trendComment||''}</div></div>
-    <div class="wksec"><div class="wktit">Что шло хорошо</div><div class="wkbl good">${s.whatWasGood||'—'}</div></div>
-    <div class="wksec"><div class="wktit">Что давалось тяжело</div><div class="wkbl hard">${s.whatWasHard||'—'}</div></div>
-    ${s.bigInsight?'<div class="wksec"><div class="wktit">Наблюдение</div><div class="wkbl ins">'+s.bigInsight+'</div></div>':''}
-    ${s.nextWeekTip?'<div class="wksec"><div class="wktit">На следующую неделю</div><div class="wkbl tip">'+s.nextWeekTip+'</div></div>':''}
+  return`<div><div class="wksec"><div class="wksc"><div class="wksn" style="color:${c}">${Number(s.avgScore).toFixed(1)}</div><div class="wksl">среднее</div><div class="wkd ${dc}">${dl}</div></div><div style="font-size:11px;color:var(--muted)">${esc(s.trendComment||'')}</div></div>
+    <div class="wksec"><div class="wktit">Что шло хорошо</div><div class="wkbl good">${esc(s.whatWasGood||'—')}</div></div>
+    <div class="wksec"><div class="wktit">Что давалось тяжело</div><div class="wkbl hard">${esc(s.whatWasHard||'—')}</div></div>
+    ${s.bigInsight?'<div class="wksec"><div class="wktit">Наблюдение</div><div class="wkbl ins">'+esc(s.bigInsight)+'</div></div>':''}
+    ${s.nextWeekTip?'<div class="wksec"><div class="wktit">На следующую неделю</div><div class="wkbl tip">'+esc(s.nextWeekTip)+'</div></div>':''}
   </div>`;
 }
 function renderWkHist(ents){
@@ -1185,9 +1214,9 @@ function renderWkHist(ents){
   if(!ents.length){list.innerHTML='<div class="empty"><div class="empty-ico">🌿</div>Нет записей за эту неделю</div>';return;}
   list.innerHTML=[...ents].reverse().map(e=>{
     const d=new Date(e.ts),c=e.score>=7?'var(--a3)':e.score>=4?'var(--accent)':'var(--a2)';
-    const tags=(e.tags||[]).slice(0,3).map(t=>'<span class="htg">'+t.text+'</span>').join('');
-    let cx='';if(e.ctx){const chips=[];if(e.ctx.sleepHours)chips.push('😴 '+e.ctx.sleepHours+'ч');if(e.ctx.places&&e.ctx.places.length)chips.push('📍 '+e.ctx.places.join(', '));if(e.ctx.weather)chips.push(e.ctx.weather);(e.ctx.activities||[]).forEach(a=>chips.push(a));if(chips.length)cx='<div class="htgs">'+chips.map(c=>'<span class="htg ctx">'+c+'</span>').join('')+'</div>';}
-    return`<div class="hi"><div class="hi-top"><div class="hi-time">${d.toLocaleDateString('ru',{day:'numeric',month:'short',weekday:'short'})} ${d.toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'})}</div><div class="hi-score" style="color:${c}">${e.score}/10 · ${e.mood||''}</div></div><div class="hi-text">${e.text||e.emo||''}</div>${tags?'<div class="htgs">'+tags+'</div>':''}${cx}</div>`;
+    const tags=(e.tags||[]).slice(0,3).map(t=>'<span class="htg">'+esc(t.text)+'</span>').join('');
+    let cx='';if(e.ctx){const chips=[];if(e.ctx.sleepHours)chips.push('😴 '+e.ctx.sleepHours+'ч');if(e.ctx.places&&e.ctx.places.length)chips.push('📍 '+e.ctx.places.map(esc).join(', '));if(e.ctx.weather)chips.push(esc(e.ctx.weather));(e.ctx.activities||[]).forEach(a=>chips.push(esc(a)));if(chips.length)cx='<div class="htgs">'+chips.map(c=>'<span class="htg ctx">'+c+'</span>').join('')+'</div>';}
+    return`<div class="hi"><div class="hi-top"><div class="hi-time">${d.toLocaleDateString('ru',{day:'numeric',month:'short',weekday:'short'})} ${d.toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'})}</div><div class="hi-score" style="color:${c}">${esc(e.score)}/10 · ${esc(e.mood||'')}</div></div><div class="hi-text">${esc(e.text||e.emo||'')}</div>${tags?'<div class="htgs">'+tags+'</div>':''}${cx}</div>`;
   }).join('');
 }
 
