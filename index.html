@@ -575,18 +575,6 @@ canvas{display:block;width:100%}
       </div>
     </div>
 
-    <!-- API Key -->
-    <div class="card" style="animation:fadeUp .42s ease">
-      <div class="ch"><div class="ct">ИИ-анализ 🤖</div></div>
-      <div class="cb">
-        <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">Для ИИ-анализа нужен ключ Google AI. Зарегистрируйся на <strong style="color:var(--text)">aistudio.google.com</strong> → Get API key. Ключ начинается с <strong style="color:var(--text)">AIza...</strong> Хранится только в браузере.</div>
-        <div style="display:flex;gap:7px;margin-bottom:8px">
-          <input class="add-inp" id="apiKeyInp" type="password" placeholder="AIza..." style="flex:1;font-size:12px">
-          <button class="add-btn" onclick="saveApiKey()">Сохранить</button>
-        </div>
-        <div id="apiKeyStatus" style="font-size:11px;color:var(--muted)"></div>
-      </div>
-    </div>
 
     <!-- Data -->
     <div class="card" style="animation:fadeUp .45s ease">
@@ -861,29 +849,14 @@ async function saveEntry(){
   if(saving)return;
   saving=true;
   document.getElementById('bsave').disabled=true;
-  document.getElementById('btxt').innerHTML='<span class="spin" style="color:#fff"></span>';
-
   const hm=!!F.emo,ht=F.text.trim().length>3;
   const hc=!!(F.ctx.places.length||F.ctx.weather||F.ctx.sleepHours||F.ctx.activities.length||F.ctx.social.length||F.ctx.body.length);
   const{r:reward}=calcReward();
-  let prompt=ht?F.text.trim():(hm?'Эмоция: '+F.emo.name+', интенсивность: '+F.intensity+'/10':'');
+  const prompt=ht?F.text.trim():(hm?'Эмоция: '+F.emo.name+', интенсивность: '+F.intensity+'/10':'');
 
+  const analysis=fallback(prompt,F.emo?F.intensity:5,F.emo?F.emo.name:'');
   const aiDiv=document.getElementById('ares');
   aiDiv.className='ar show';
-  aiDiv.innerHTML='<div style="display:flex;align-items:center;gap:9px;color:var(--muted);font-size:12px"><span class="spin" style="color:var(--a3)"></span>ИИ анализирует...</div>';
-
-  let analysis;
-  try{
-    const sys='Ты психологический ассистент. Анализируй запись о настроении и возвращай ТОЛЬКО JSON без markdown.\nФормат: {"score":число 1-10,"mood":"1-3 слова","tags":[{"text":"тег","type":"trigger|positive|neutral"}],"triggers":["строка"],"positives":["строка"],"insight":"одно тёплое личное наблюдение"}\nscore 1=очень плохо 10=отлично. tags максимум 5. insight конкретный.';
-    const raw=await Promise.race([
-      fetchAI(prompt||'нет текста',sys,1000),
-      new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),12000))
-    ]);
-    analysis=JSON.parse(raw.replace(/```json|```/g,'').trim());
-  }catch(e){
-    const noKey=e.message==='no key'||!localStorage.getItem('mood_api_key');
-    analysis=fallback(prompt,F.emo?F.intensity:5,F.emo?F.emo.name:'',noKey);
-  }
 
   if(hm&&!ht){
     analysis.score=F.intensity;
@@ -910,50 +883,12 @@ async function saveEntry(){
   saving=false;
 }
 
-async function fetchAI(text,sys,maxTokens){
-  const apiKey=localStorage.getItem('mood_api_key')||'';
-  if(!apiKey)throw new Error('no key');
-  const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+apiKey,{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-      systemInstruction:{parts:[{text:sys}]},
-      contents:[{role:'user',parts:[{text}]}],
-      generationConfig:{maxOutputTokens:maxTokens}
-    })
-  });
-  if(!r.ok){const e=await r.text();throw new Error('api '+r.status+' '+e);}
-  const d=await r.json();
-  if(d.error)throw new Error(d.error.message);
-  return d.candidates[0].content.parts[0].text;
-}
-function saveApiKey(){
-  const key=document.getElementById('apiKeyInp').value.trim();
-  if(!key){toast('Введи ключ');return;}
-  if(!key.startsWith('AIza')){toast('Ключ Google AI начинается с AIza...');return;}
-  localStorage.setItem('mood_api_key',key);
-  document.getElementById('apiKeyInp').value='';
-  document.getElementById('apiKeyStatus').textContent='✅ Ключ сохранён';
-  document.getElementById('apiKeyStatus').style.color='var(--a3)';
-  toast('✅ API-ключ сохранён — ИИ теперь работает!');
-}
-function renderApiKeyStatus(){
-  const key=localStorage.getItem('mood_api_key');
-  const el=document.getElementById('apiKeyStatus');
-  if(!el)return;
-  if(key){el.textContent='✅ Ключ установлен ('+key.substring(0,12)+'…)';el.style.color='var(--a3)';}
-  else{el.textContent='⚠️ Ключ не установлен — ИИ работает в упрощённом режиме';el.style.color='var(--muted)';}
-}
-function fallback(text,bs,be,noKey=false){
+function fallback(text,bs,be){
   let score=bs||5;
   const tags=be?[{text:be,type:'neutral'}]:[];
   const mm={Радость:'Радостное',Спокойствие:'Спокойное',Тревога:'Тревожное',Усталость:'Усталость',Грусть:'Грусть',Раздражение:'Раздражение',Вдохновение:'Вдохновение',Пусто:'Опустошение'};
-  // minimal score adjustment without adding noisy tags
   if(text){const l=text.toLowerCase();['плохо','тяжело','сложно','тревог','грустн'].forEach(w=>{if(l.includes(w))score=Math.max(score-1,1);});['хорошо','радост','вдохнов'].forEach(w=>{if(l.includes(w))score=Math.min(score+1,10);});}
-  const insight=noKey
-    ?'Добавь API-ключ в Настройках → ИИ-анализ для полного разбора.'
-    :'ИИ-анализ временно недоступен — проверь ключ и соединение, попробуй ещё раз.';
-  return{score,mood:mm[be]||(score>6?'Хорошее':score>4?'Нейтральное':'Сложное'),tags,triggers:[],positives:[],insight};
+  return{score,mood:mm[be]||(score>6?'Хорошее':score>4?'Нейтральное':'Сложное'),tags,triggers:[],positives:[],insight:''};
 }
 function showRes(div,a,reward){
   const c=a.score>=7?'var(--a3)':a.score>=4?'var(--accent)':'var(--a2)';
@@ -1171,21 +1106,24 @@ function renderWkStats(ents){
   document.getElementById('wksr').innerHTML=`<div class="wkst"><div class="wl">Среднее</div><div class="wv" style="color:${c}">${avg.toFixed(1)}</div></div><div class="wkst"><div class="wl">Лучший</div><div class="wv" style="color:var(--a3)">${best}</div></div><div class="wkst"><div class="wl">Сложный</div><div class="wv" style="color:var(--a2)">${worst}</div></div>`;
 }
 async function genWkSum(){
-  const t=document.getElementById('wgtxt');if(t)t.innerHTML='<span class="spin" style="color:#fff"></span> Анализирую...';
   const{start,end}=getWkBounds(weekOff);
   const ents=S.entries.filter(e=>e.ts>=start&&e.ts<=end);if(!ents.length)return;
-  const txt=ents.map(e=>{
-    const d=new Date(e.ts),day=['вс','пн','вт','ср','чт','пт','сб'][d.getDay()],time=d.toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'});
-    let l='['+day+' '+time+'] '+e.score+'/10 ('+e.mood+'): '+e.text;
-    if(e.ctx){if(e.ctx.sleepHours)l+=' | сон '+e.ctx.sleepHours+'ч';if(e.ctx.places&&e.ctx.places.length)l+=' | место: '+e.ctx.places.join(', ');if(e.ctx.weather)l+=' | погода '+e.ctx.weather;if(e.ctx.activities&&e.ctx.activities.length)l+=' | занятия: '+e.ctx.activities.join(', ');}
-    return l;
-  }).join('\n');
-  const sys='Ты психологический ассистент. Анализируй записи о настроении за неделю. Только JSON без markdown.\nФормат: {"avgScore":число,"trend":"up|down|stable","trendComment":"фраза","whatWasGood":"2-3 предл","whatWasHard":"2-3 предл","bigInsight":"личное тёплое наблюдение","nextWeekTip":"мягкий совет"}';
-  let sum;
-  try{
-    const raw=await Promise.race([fetchAI('Записи:\n'+txt,sys,1200),new Promise((_,r)=>setTimeout(()=>r(new Error('to')),15000))]);
-    sum=JSON.parse(raw.replace(/```json|```/g,'').trim());
-  }catch(e){const avg=ents.reduce((a,b)=>a+b.score,0)/ents.length;const noKey=e.message==='no key'||!localStorage.getItem('mood_api_key');sum={avgScore:avg.toFixed(1),trend:'stable',trendComment:noKey?'нет ключа':'ошибка запроса',whatWasGood:'Ты делала записи — это само по себе важно.',whatWasHard:noKey?'Добавь API-ключ в Настройках → ИИ-анализ для полного итога.':'Не удалось получить анализ — проверь ключ и соединение.',bigInsight:'Сам факт наблюдения за собой — забота о себе.',nextWeekTip:'Продолжай делать записи.'};}
+  const avg=ents.reduce((a,b)=>a+b.score,0)/ents.length;
+  const half=Math.floor(ents.length/2);
+  const firstAvg=half?ents.slice(0,half).reduce((a,b)=>a+b.score,0)/half:avg;
+  const lastAvg=ents.slice(-Math.max(1,half)).reduce((a,b)=>a+b.score,0)/Math.max(1,half);
+  const trend=lastAvg>firstAvg+0.5?'up':lastAvg<firstAvg-0.5?'down':'stable';
+  const best=ents.reduce((a,b)=>b.score>a.score?b:a);
+  const worst=ents.reduce((a,b)=>b.score<a.score?b:a);
+  const sum={
+    avgScore:avg.toFixed(1),
+    trend,
+    trendComment:trend==='up'?'настроение улучшалось':trend==='down'?'было непросто':'держалась ровно',
+    whatWasGood:best.text?'Лучший момент: «'+best.text.slice(0,80)+'»':'Лучшая оценка за неделю: '+best.score+'/10',
+    whatWasHard:worst.text?'Сложный момент: «'+worst.text.slice(0,80)+'»':'Сложная оценка за неделю: '+worst.score+'/10',
+    bigInsight:'Сам факт наблюдения за собой — забота о себе.',
+    nextWeekTip:'Продолжай делать записи.'
+  };
   sum.ts=Date.now();S.weeklySummaries['wsum_'+start]=sum;chkAchs();await save();
   document.getElementById('wkbdy').innerHTML=buildSumHTML(sum);document.getElementById('wkst').textContent='только что';
 }
@@ -1282,7 +1220,6 @@ function renderGP(){
 // ══════════════════════════════════
 function renderSettings(){
   document.getElementById('mycode').textContent=S.myCode;
-  renderApiKeyStatus();
   // Partner status
   const pconn=document.getElementById('pconnected');
   if(S.partnerCode){pconn.style.display='block';document.getElementById('ptmy').style.display='none';document.getElementById('ptjoin').style.display='none';}
