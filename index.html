@@ -610,6 +610,19 @@ canvas{display:block;width:100%}
 
 </div><!-- /app -->
 
+<!-- EDIT ENTRY MODAL -->
+<div class="mo" id="editmo" onclick="if(event.target===this)closeEdit()">
+  <div class="ms">
+    <div style="font-family:'Fraunces',serif;font-size:15px;margin-bottom:16px">Редактировать запись</div>
+    <div class="csl" style="margin-bottom:6px">Текст</div>
+    <textarea id="edtxt" placeholder="Что происходило..." style="margin-bottom:14px"></textarea>
+    <div class="sr" style="margin-bottom:7px"><span>Оценка</span><span class="sv" id="edscoreval">5</span></div>
+    <input type="range" min="1" max="10" value="5" id="edscore" oninput="updEdScore(this)" style="margin-bottom:18px">
+    <button class="bp" onclick="saveEditEntry()">Сохранить</button>
+    <button class="bg" onclick="closeEdit()">Отмена</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <nav class="nav">
@@ -909,7 +922,7 @@ async function fetchAI(text,sys,maxTokens){
       'X-Title':'Sostoyanie Mood Tracker'
     },
     body:JSON.stringify({
-      model:'meta-llama/llama-3.3-70b-instruct:free',
+      model:'google/gemma-3-12b-it:free',
       max_tokens:maxTokens,
       messages:[
         {role:'system',content:sys},
@@ -1202,7 +1215,7 @@ function renderWkHist(ents){
     const d=new Date(e.ts),c=e.score>=7?'var(--a3)':e.score>=4?'var(--accent)':'var(--a2)';
     const tags=(e.tags||[]).slice(0,3).map(t=>'<span class="htg">'+esc(t.text)+'</span>').join('');
     let cx='';if(e.ctx){const chips=[];if(e.ctx.sleepHours)chips.push('😴 '+e.ctx.sleepHours+'ч');if(e.ctx.places&&e.ctx.places.length)chips.push('📍 '+e.ctx.places.map(esc).join(', '));if(e.ctx.weather)chips.push(esc(e.ctx.weather));(e.ctx.activities||[]).forEach(a=>chips.push(esc(a)));if(chips.length)cx='<div class="htgs">'+chips.map(c=>'<span class="htg ctx">'+c+'</span>').join('')+'</div>';}
-    return`<div class="hi"><div class="hi-top"><div class="hi-time">${d.toLocaleDateString('ru',{day:'numeric',month:'short',weekday:'short'})} ${d.toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'})}</div><div class="hi-score" style="color:${c}">${esc(e.score)}/10 · ${esc(e.mood||'')}</div></div><div class="hi-text">${esc(e.text||e.emo||'')}</div>${tags?'<div class="htgs">'+tags+'</div>':''}${cx}</div>`;
+    return`<div class="hi"><div class="hi-top"><div class="hi-time">${d.toLocaleDateString('ru',{day:'numeric',month:'short',weekday:'short'})} ${d.toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'})}</div><div style="display:flex;align-items:center;gap:6px"><div class="hi-score" style="color:${c}">${esc(e.score)}/10 · ${esc(e.mood||'')}</div><button onclick="openEditEntry(${e.id})" style="background:none;border:none;cursor:pointer;font-size:12px;padding:2px 4px;border-radius:5px;color:var(--muted)" title="Редактировать">✏️</button></div></div><div class="hi-text">${esc(e.text||e.emo||'')}</div>${tags?'<div class="htgs">'+tags+'</div>':''}${cx}</div>`;
   }).join('');
 }
 
@@ -1374,6 +1387,29 @@ async function resetAll(){
 // ══════════════════════════════════
 // TOAST / RENDER ALL
 // ══════════════════════════════════
+// ══════════════════════════════════
+// EDIT ENTRY
+// ══════════════════════════════════
+let editingId=null;
+function updEdScore(el){el.style.setProperty('--pct',((el.value-1)/9*100).toFixed(0)+'%');document.getElementById('edscoreval').textContent=el.value;}
+function openEditEntry(id){
+  const e=S.entries.find(en=>en.id===id);if(!e)return;
+  editingId=id;
+  document.getElementById('edtxt').value=e.text||'';
+  const sc=document.getElementById('edscore');sc.value=e.score;updEdScore(sc);
+  document.getElementById('editmo').classList.add('show');
+}
+function closeEdit(){document.getElementById('editmo').classList.remove('show');editingId=null;}
+async function saveEditEntry(){
+  if(!editingId)return;
+  const e=S.entries.find(en=>en.id===editingId);if(!e)return;
+  const newText=document.getElementById('edtxt').value.trim();
+  const newScore=+document.getElementById('edscore').value;
+  e.text=newText;e.score=newScore;e.hasText=newText.length>3;
+  await save();closeEdit();renderWeek();
+  toast('✅ Запись обновлена');
+}
+
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
 function renderAll(){renderStreakHero();renderCal();renderLevel();updCrystals();updPartnerUI();}
 
