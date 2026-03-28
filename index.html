@@ -923,7 +923,7 @@ async function fetchAI(text,sys,maxTokens){
       'X-Title':'Sostoyanie Mood Tracker'
     },
     body:JSON.stringify({
-      model:'meta-llama/llama-3.3-8b-instruct:free',
+      model:'meta-llama/llama-3.3-70b-instruct:free',
       max_tokens:maxTokens,
       messages:[
         {role:'system',content:sys},
