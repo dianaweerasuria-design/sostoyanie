@@ -50,11 +50,118 @@ const Analytics = {
   /** Render everything */
   render() {
     const entries = this.getEntries();
+    this.renderAvgScore();
+    this.renderSituationsStats();
+    this.renderDistortions();
     this.renderTrend(entries);
     this.renderCorrelations(entries);
     this.renderPatterns(entries);
     this.renderEmotions(entries);
     this.renderPixels();
+  },
+
+  /** Get evening diaries for the selected period */
+  getEveningDiaries() {
+    const diaries = this.state.eveningDiaries || {};
+    const entries = Object.values(diaries);
+    if (this.period === 'all') return entries;
+
+    const now = new Date();
+    let start;
+    if (this.period === 'week') {
+      start = new Date(now); start.setDate(start.getDate() - 7);
+    } else {
+      start = new Date(now); start.setDate(start.getDate() - 30);
+    }
+    start.setHours(0, 0, 0, 0);
+    return entries.filter(e => {
+      const parts = e.date.split('-');
+      const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+      return d >= start;
+    });
+  },
+
+  /** Get situations for the selected period */
+  getSituations() {
+    const situations = this.state.situations || [];
+    if (this.period === 'all') return situations;
+
+    const now = new Date();
+    let start;
+    if (this.period === 'week') {
+      start = new Date(now); start.setDate(start.getDate() - 7);
+    } else {
+      start = new Date(now); start.setDate(start.getDate() - 30);
+    }
+    start.setHours(0, 0, 0, 0);
+    return situations.filter(s => {
+      const parts = s.date.split('-');
+      const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+      return d >= start;
+    });
+  },
+
+  renderAvgScore() {
+    const valEl = document.getElementById('analyticsAvgScoreVal');
+    const descEl = document.getElementById('analyticsAvgScoreDesc');
+    if (!valEl) return;
+
+    const diaries = this.getEveningDiaries();
+    if (diaries.length === 0) {
+      valEl.textContent = '—';
+      valEl.style.color = '';
+      if (descEl) descEl.textContent = 'Нет данных вечернего дневника';
+      return;
+    }
+    const avg = diaries.reduce((s, d) => s + (d.score || 0), 0) / diaries.length;
+    valEl.textContent = avg.toFixed(1);
+    if (avg <= 3) valEl.style.color = 'var(--accent2)';
+    else if (avg <= 6) valEl.style.color = 'var(--gold)';
+    else if (avg <= 8) valEl.style.color = 'var(--accent3)';
+    else valEl.style.color = 'var(--blue)';
+    if (descEl) descEl.textContent = 'По данным ' + diaries.length + ' дней';
+  },
+
+  renderSituationsStats() {
+    const posEl = document.getElementById('analyticsPosCount');
+    const negEl = document.getElementById('analyticsNegCount');
+    if (!posEl) return;
+
+    const situations = this.getSituations();
+    const posCount = situations.filter(s => s.type === 'positive').length;
+    const negCount = situations.filter(s => s.type === 'negative').length;
+    posEl.textContent = posCount;
+    negEl.textContent = negCount;
+  },
+
+  renderDistortions() {
+    const el = document.getElementById('analyticsDistortionsList');
+    if (!el) return;
+
+    const situations = this.getSituations().filter(s => s.type === 'negative');
+    const counts = {};
+    situations.forEach(s => {
+      (s.distortions || []).forEach(id => {
+        counts[id] = (counts[id] || 0) + 1;
+      });
+    });
+
+    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    if (sorted.length === 0) {
+      el.innerHTML = '<p class="text-muted">Нет данных об искажениях</p>';
+      return;
+    }
+
+    let html = '';
+    sorted.forEach(([id, count]) => {
+      const dist = COGNITIVE_DISTORTIONS.find(d => d.id === id);
+      if (!dist) return;
+      html += '<div class="distortion-stat-row">';
+      html += '<span class="distortion-stat-name">' + dist.name + '</span>';
+      html += '<span class="distortion-stat-count">' + count + '</span>';
+      html += '</div>';
+    });
+    el.innerHTML = html;
   },
 
   /** Trend chart — bar chart of daily average scores */

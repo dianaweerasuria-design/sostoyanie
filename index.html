@@ -17,7 +17,7 @@
   <div class="app">
     <!-- Шапка -->
     <header class="header">
-      <div class="header__logo">
+      <div class="header__logo" id="headerLogo">
         <span class="header__logo-accent">С</span>остояние
       </div>
       <div class="header__right">
@@ -33,6 +33,18 @@
       <!-- TAB 1: Главная (виджеты) -->
       <section class="tab-panel active" id="tabHome">
         <div class="home-widgets">
+
+          <!-- День навигация -->
+          <div id="homeDayNav"></div>
+
+          <!-- Оценка дня -->
+          <div id="homeDayScore"></div>
+
+          <!-- Карточки дневников -->
+          <div id="homeDiaryCards"></div>
+
+          <!-- Кнопка записать ситуацию -->
+          <button class="btn btn--secondary btn--full" id="homeSituationBtn" style="margin-bottom:14px;">📝 Записать ситуацию</button>
 
           <!-- Виджет серии -->
           <div class="card card--dark streak-widget" id="streakWidget">
@@ -114,6 +126,43 @@
             <button class="analytics__period-tab active" data-period="week">Неделя</button>
             <button class="analytics__period-tab" data-period="month">Месяц</button>
             <button class="analytics__period-tab" data-period="all">Всё время</button>
+          </div>
+
+          <!-- Средняя оценка дня -->
+          <div class="card" id="analyticsAvgScore">
+            <h2 class="section-title">📅 Средняя оценка дня</h2>
+            <div class="analytics-avg-score-display" id="analyticsAvgScoreVal">—</div>
+            <p class="text-muted" id="analyticsAvgScoreDesc">Нет данных вечернего дневника</p>
+          </div>
+
+          <!-- Ситуации -->
+          <div class="card" id="analyticsSituations">
+            <h2 class="section-title">📊 Ситуации</h2>
+            <div class="analytics-situations-row">
+              <div class="analytics-situations-item analytics-situations-item--pos">
+                <span class="analytics-situations-count" id="analyticsPosCount">0</span>
+                <span class="analytics-situations-label">Позитивных</span>
+              </div>
+              <div class="analytics-situations-item analytics-situations-item--neg">
+                <span class="analytics-situations-count" id="analyticsNegCount">0</span>
+                <span class="analytics-situations-label">Негативных</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Топ искажений -->
+          <div class="card" id="analyticsDistortions">
+            <h2 class="section-title">🧠 Частые искажения</h2>
+            <div id="analyticsDistortionsList"><p class="text-muted">Нет данных</p></div>
+          </div>
+
+          <!-- ИИ-инсайты placeholder -->
+          <div class="ai-placeholder-card card" id="analyticsAiInsights">
+            <div class="ai-placeholder__icon">🤖</div>
+            <div class="ai-placeholder__content">
+              <div class="ai-placeholder__title">ИИ-инсайты</div>
+              <div class="ai-placeholder__text">⏳ Эта функция будет доступна позже</div>
+            </div>
           </div>
 
           <!-- Тренд настроения -->
@@ -284,6 +333,38 @@
       </div>
       <div class="settings-overlay__body">
 
+        <!-- Профиль -->
+        <div class="card">
+          <h2 class="section-title">👤 Профиль</h2>
+          <div class="diary-question">
+            <label class="diary-label">Как тебя зовут?</label>
+            <input type="text" id="settingsUserName" class="settings-input" placeholder="Введи своё имя" maxlength="30">
+          </div>
+          <button class="btn btn--primary btn--sm mt-8" id="settingsUserNameSave">Сохранить</button>
+          <div class="partner-code mt-12">
+            <span class="text-muted">Твой код:</span>
+            <span class="partner-code__value" id="settingsMyCodeDisplay">—</span>
+          </div>
+        </div>
+
+        <!-- Напоминания -->
+        <div class="card">
+          <h2 class="section-title">🔔 Напоминания</h2>
+          <div class="settings-notif-info">
+            🔔 Push-уведомления будут доступны в мобильной версии приложения
+          </div>
+          <div class="settings-notif-times mt-12">
+            <div class="settings-notif-time-row">
+              <span class="diary-label">☀️ Утренний дневник</span>
+              <span class="settings-notif-time">09:00</span>
+            </div>
+            <div class="settings-notif-time-row mt-8">
+              <span class="diary-label">🌙 Вечерний дневник</span>
+              <span class="settings-notif-time">21:00</span>
+            </div>
+          </div>
+        </div>
+
         <!-- Редактор эмоций -->
         <div class="card">
           <h2 class="section-title">😊 Эмоции</h2>
@@ -429,6 +510,216 @@
       </div>
     </div>
 
+    <!-- ===== УТРЕННИЙ ДНЕВНИК ===== -->
+    <div class="fullscreen-overlay" id="morningOverlay">
+      <div class="fullscreen-overlay__header">
+        <button class="fullscreen-overlay__back" id="morningBack">← Назад</button>
+        <span class="fullscreen-overlay__title" id="morningDateTitle">Утренний дневник</span>
+        <span></span>
+      </div>
+      <div class="fullscreen-overlay__body">
+
+        <!-- Подсказка -->
+        <div class="collapsible-hint">
+          <div class="collapsible-hint__header" id="morningHintToggle">
+            <span>💡 Как вести утренний дневник</span>
+            <span id="morningHintArrow">▼</span>
+          </div>
+          <div class="collapsible-hint__body" id="morningHintBody" style="display:none;">
+            <p>Утренний дневник помогает настроиться на день с ясностью и намерением. Отвечай честно и без осуждения. Достаточно 5–10 минут тишины по утрам.</p>
+          </div>
+        </div>
+
+        <!-- Вопросы -->
+        <div class="diary-question">
+          <label class="diary-label">1. Что ты хочешь в приоритете сделать сегодня?</label>
+          <textarea id="morning_priorities" class="diary-textarea" rows="3" placeholder="Опиши главную задачу или намерение..."></textarea>
+        </div>
+        <div class="diary-question mt-12">
+          <label class="diary-label">2. Какие чувства испытываешь сейчас?</label>
+          <textarea id="morning_feelings" class="diary-textarea" rows="3" placeholder="Опиши своё состояние..."></textarea>
+        </div>
+        <div class="diary-question mt-12">
+          <label class="diary-label">3. Можешь ли ты что-то улучшить в своём отношении к сегодняшнему дню?</label>
+          <textarea id="morning_attitude" class="diary-textarea" rows="3" placeholder="Настрой и установки..."></textarea>
+        </div>
+        <div class="diary-question mt-12">
+          <label class="diary-label">4. Что я хочу улучшить сегодня?</label>
+          <textarea id="morning_improve" class="diary-textarea" rows="3" placeholder="Над чем поработать..."></textarea>
+        </div>
+        <div class="diary-question mt-12">
+          <label class="diary-label">5. О чём я благодарен/благодарна?</label>
+          <textarea id="morning_gratitude" class="diary-textarea" rows="3" placeholder="3 вещи, за которые благодарен/а..."></textarea>
+        </div>
+
+        <!-- ИИ-заглушка -->
+        <div class="ai-placeholder-card mt-16">
+          <div class="ai-placeholder__icon">🤖</div>
+          <div class="ai-placeholder__content">
+            <div class="ai-placeholder__title">ИИ-анализ</div>
+            <div class="ai-placeholder__text">⏳ Эта функция будет доступна позже</div>
+          </div>
+        </div>
+
+        <button class="btn btn--primary btn--full mt-16" id="morningSave">☀️ Сохранить утро</button>
+        <div style="height:32px;"></div>
+      </div>
+    </div>
+
+    <!-- ===== ВЕЧЕРНИЙ ДНЕВНИК ===== -->
+    <div class="fullscreen-overlay" id="eveningOverlay">
+      <div class="fullscreen-overlay__header">
+        <button class="fullscreen-overlay__back" id="eveningBack">← Назад</button>
+        <span class="fullscreen-overlay__title" id="eveningDateTitle">Вечерний дневник</span>
+        <span></span>
+      </div>
+      <div class="fullscreen-overlay__body">
+
+        <!-- Подсказки -->
+        <div class="collapsible-hint">
+          <div class="collapsible-hint__header" id="eveningHint1Toggle">
+            <span>🌙 Зачем вести вечерний дневник</span>
+            <span id="eveningHint1Arrow">▼</span>
+          </div>
+          <div class="collapsible-hint__body" id="eveningHint1Body" style="display:none;">
+            <p>Вечерний дневник помогает переработать события дня, отпустить напряжение и зафиксировать то хорошее, что произошло. Это снижает тревожность и улучшает сон.</p>
+          </div>
+        </div>
+        <div class="collapsible-hint mt-8">
+          <div class="collapsible-hint__header" id="eveningHint2Toggle">
+            <span>💡 Как вести вечерний дневник</span>
+            <span id="eveningHint2Arrow">▼</span>
+          </div>
+          <div class="collapsible-hint__body" id="eveningHint2Body" style="display:none;">
+            <p>Пиши честно, без самокритики. Вечерний дневник — это место для рефлексии, а не для самооценки. Уделяй ему 10–15 минут перед сном.</p>
+          </div>
+        </div>
+
+        <!-- Вопросы -->
+        <div class="diary-question mt-12">
+          <label class="diary-label">1. Что ты сегодня сделал(а) хорошего?</label>
+          <textarea id="evening_good" class="diary-textarea" rows="3" placeholder="Даже маленькие победы считаются..."></textarea>
+        </div>
+        <div class="diary-question mt-12">
+          <label class="diary-label">2. Какие были трудности?</label>
+          <textarea id="evening_difficulties" class="diary-textarea" rows="3" placeholder="Что было сложно..."></textarea>
+        </div>
+        <div class="diary-question mt-12">
+          <label class="diary-label">3. Что можно было сделать лучше?</label>
+          <textarea id="evening_improve" class="diary-textarea" rows="3" placeholder="Без самокритики, просто наблюдение..."></textarea>
+        </div>
+
+        <!-- Слайдер оценки дня -->
+        <div class="diary-question mt-12">
+          <div class="cbt-slider-header">
+            <label class="diary-label">4. Оцени свой день (1–10)</label>
+            <span class="cbt-slider-value day-score-big" id="eveningScoreValue">5</span>
+          </div>
+          <input type="range" id="evening_score" min="1" max="10" value="5" class="cbt-range">
+          <div class="intensity-labels"><span>Ужасно</span><span>Отлично</span></div>
+        </div>
+
+        <div class="diary-question mt-12">
+          <label class="diary-label">5. О чём ты благодарен/благодарна сегодня?</label>
+          <textarea id="evening_gratitude" class="diary-textarea" rows="3" placeholder="Что порадовало сегодня..."></textarea>
+        </div>
+        <div class="diary-question mt-12">
+          <label class="diary-label">6. Планы на завтра (необязательно)</label>
+          <textarea id="evening_tomorrow" class="diary-textarea" rows="3" placeholder="Что хочешь сделать завтра..."></textarea>
+        </div>
+
+        <!-- ИИ-заглушка -->
+        <div class="ai-placeholder-card mt-16">
+          <div class="ai-placeholder__icon">🤖</div>
+          <div class="ai-placeholder__content">
+            <div class="ai-placeholder__title">ИИ-анализ</div>
+            <div class="ai-placeholder__text">⏳ Эта функция будет доступна позже</div>
+          </div>
+        </div>
+
+        <button class="btn btn--primary btn--full mt-16" id="eveningSave">🌙 Сохранить вечер</button>
+        <div style="height:32px;"></div>
+      </div>
+    </div>
+
+    <!-- ===== ВЫБОР СИТУАЦИИ ===== -->
+    <div class="fullscreen-overlay" id="situationChoiceOverlay">
+      <div class="fullscreen-overlay__header">
+        <button class="fullscreen-overlay__back" id="situationChoiceBack">← Назад</button>
+        <span class="fullscreen-overlay__title">Записать ситуацию</span>
+        <span></span>
+      </div>
+      <div class="fullscreen-overlay__body">
+        <p class="text-muted mb-16">Выбери тип ситуации:</p>
+        <button class="btn btn--full situation-choice-btn situation-choice-btn--pos mt-8" id="situationChoicePos">
+          <span style="font-size:1.5rem;">💚</span>
+          <span>
+            <strong>Позитивная ситуация</strong><br>
+            <small>Запись приятных событий и эмоций</small>
+          </span>
+        </button>
+        <button class="btn btn--full situation-choice-btn situation-choice-btn--neg mt-12" id="situationChoiceNeg">
+          <span style="font-size:1.5rem;">🔴</span>
+          <span>
+            <strong>Негативная ситуация (КПТ)</strong><br>
+            <small>Работа с трудными мыслями и эмоциями</small>
+          </span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ===== ПОЗИТИВНАЯ СИТУАЦИЯ ===== -->
+    <div class="fullscreen-overlay" id="situationPosOverlay">
+      <div class="fullscreen-overlay__header">
+        <button class="fullscreen-overlay__back" id="situationPosBack">← Назад</button>
+        <span class="fullscreen-overlay__title" id="situationPosTitle">Позитивная ситуация</span>
+        <span></span>
+      </div>
+      <div class="fullscreen-overlay__body" id="situationPosBody">
+      </div>
+    </div>
+
+    <!-- ===== НЕГАТИВНАЯ СИТУАЦИЯ (КПТ) ===== -->
+    <div class="fullscreen-overlay" id="situationNegOverlay">
+      <div class="fullscreen-overlay__header">
+        <button class="fullscreen-overlay__back" id="situationNegBack">← Назад</button>
+        <span class="fullscreen-overlay__title" id="situationNegTitle">Негативная ситуация</span>
+        <span class="fullscreen-overlay__step" id="situationNegStep">Шаг 1 из 6</span>
+      </div>
+      <div class="fullscreen-overlay__body" id="situationNegBody">
+      </div>
+    </div>
+
+    <!-- ===== BOTTOM SHEET (FAB menu) ===== -->
+    <div class="bottom-sheet-backdrop" id="bottomSheetBackdrop"></div>
+    <div class="bottom-sheet" id="fabBottomSheet">
+      <div class="bottom-sheet__handle"></div>
+      <div class="bottom-sheet__title">Добавить запись</div>
+      <div class="bottom-sheet__items">
+        <button class="bottom-sheet__item" id="fabMoodEntry">
+          <span class="bottom-sheet__item-icon">✨</span>
+          <span class="bottom-sheet__item-label">Запись настроения</span>
+        </button>
+        <button class="bottom-sheet__item" id="fabMorning">
+          <span class="bottom-sheet__item-icon">☀️</span>
+          <span class="bottom-sheet__item-label">Утренний дневник</span>
+        </button>
+        <button class="bottom-sheet__item" id="fabEvening">
+          <span class="bottom-sheet__item-icon">🌙</span>
+          <span class="bottom-sheet__item-label">Вечерний дневник</span>
+        </button>
+        <button class="bottom-sheet__item" id="fabPositive">
+          <span class="bottom-sheet__item-icon">💚</span>
+          <span class="bottom-sheet__item-label">Позитивная ситуация</span>
+        </button>
+        <button class="bottom-sheet__item" id="fabNegative">
+          <span class="bottom-sheet__item-icon">🔴</span>
+          <span class="bottom-sheet__item-label">Негативная ситуация (КПТ)</span>
+        </button>
+      </div>
+      <div style="height:24px;"></div>
+    </div>
+
     <!-- Нижний таб-бар (4 + центральная кнопка) -->
     <nav class="tab-bar">
       <button class="tab-bar__btn active" data-tab="tabHome">
@@ -463,6 +754,10 @@
   <script src="js/achievements.js"></script>
   <script src="js/partner.js"></script>
   <script src="js/settings.js"></script>
+  <script src="js/morning.js"></script>
+  <script src="js/evening.js"></script>
+  <script src="js/situation.js"></script>
+  <script src="js/home-screen.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

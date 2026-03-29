@@ -133,8 +133,7 @@ const Entry = {
   bindFlowEvents() {
     var self = this;
 
-    var addBtn = document.getElementById('addEntryBtn');
-    if (addBtn) addBtn.addEventListener('click', function() { self.openFlow(); });
+    // addEntryBtn now handled by App.initFAB() bottom sheet
 
     document.getElementById('flowClose').addEventListener('click', function() { self.tryClose(); });
 

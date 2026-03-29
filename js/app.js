@@ -16,6 +16,12 @@ const App = {
     this.updateHeader();
     this.startClock();
 
+    // Migrate state: add new fields if missing
+    if (!this.state.morningDiaries) this.state.morningDiaries = {};
+    if (!this.state.eveningDiaries) this.state.eveningDiaries = {};
+    if (!this.state.situations) this.state.situations = [];
+    if (this.state.userName === undefined) this.state.userName = '';
+
     // Init modules
     Entry.init(this.state);
     Analytics.init(this.state);
@@ -25,7 +31,13 @@ const App = {
     Achieve.init(this.state);
     Partner.init(this.state);
     Settings.init(this.state);
+    MorningDiary.init(this.state);
+    EveningDiary.init(this.state);
+    Situation.init(this.state);
+    HomeScreen.init(this.state);
 
+    this.initFAB();
+    this.initHomeSituationBtn();
     this.renderHomeWeekStats();
   },
 
@@ -69,6 +81,54 @@ const App = {
   updateHeader() {
     const crystalsEl = document.getElementById('headerCrystals');
     if (crystalsEl) crystalsEl.textContent = '💎 ' + (this.state.crystals || 0);
+    // Greet by name
+    const logoEl = document.getElementById('headerLogo');
+    if (logoEl && this.state.userName) {
+      logoEl.innerHTML = 'Привет, <span class="header__logo-accent">' + this.state.userName + '</span>!';
+    } else if (logoEl) {
+      logoEl.innerHTML = '<span class="header__logo-accent">С</span>остояние';
+    }
+  },
+
+  /** FAB bottom sheet */
+  initFAB() {
+    const addBtn = document.getElementById('addEntryBtn');
+    const sheet = document.getElementById('fabBottomSheet');
+    const backdrop = document.getElementById('bottomSheetBackdrop');
+
+    const openSheet = () => {
+      sheet.classList.add('active');
+      backdrop.classList.add('active');
+    };
+    const closeSheet = () => {
+      sheet.classList.remove('active');
+      backdrop.classList.remove('active');
+    };
+
+    if (addBtn) addBtn.addEventListener('click', openSheet);
+    if (backdrop) backdrop.addEventListener('click', closeSheet);
+
+    const todayKey = () => Streak.dateKey(Date.now());
+
+    const fabMood = document.getElementById('fabMoodEntry');
+    const fabMorning = document.getElementById('fabMorning');
+    const fabEvening = document.getElementById('fabEvening');
+    const fabPositive = document.getElementById('fabPositive');
+    const fabNegative = document.getElementById('fabNegative');
+
+    if (fabMood) fabMood.addEventListener('click', () => { closeSheet(); Entry.openFlow(); });
+    if (fabMorning) fabMorning.addEventListener('click', () => { closeSheet(); MorningDiary.open(todayKey()); });
+    if (fabEvening) fabEvening.addEventListener('click', () => { closeSheet(); EveningDiary.open(todayKey()); });
+    if (fabPositive) fabPositive.addEventListener('click', () => { closeSheet(); Situation.openPositive(todayKey()); });
+    if (fabNegative) fabNegative.addEventListener('click', () => { closeSheet(); Situation.openNegative(todayKey()); });
+  },
+
+  initHomeSituationBtn() {
+    const btn = document.getElementById('homeSituationBtn');
+    if (btn) btn.addEventListener('click', () => {
+      const dateKey = HomeScreen ? HomeScreen.dateKey(HomeScreen.selectedDate) : Streak.dateKey(Date.now());
+      Situation.openChoice(dateKey);
+    });
   },
 
   startClock() {
@@ -96,6 +156,7 @@ const App = {
     Achieve.checkAll();
     Storage.save(this.state);
     this.renderHomeWeekStats();
+    if (typeof HomeScreen !== 'undefined') HomeScreen.render();
   },
 
   /** Render week stats on home screen */

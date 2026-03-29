@@ -11,6 +11,10 @@ const Settings = {
   bindEvents() {
     var self = this;
 
+    // Profile
+    var userNameSave = document.getElementById('settingsUserNameSave');
+    if (userNameSave) userNameSave.addEventListener('click', function() { self.saveUserName(); });
+
     // Emotion add
     document.getElementById('settingsEmotionAdd').addEventListener('click', function() { self.addEmotion(); });
     document.getElementById('settingsEmotionReset').addEventListener('click', function() { self.resetEmotions(); });
@@ -35,9 +39,27 @@ const Settings = {
   },
 
   render() {
+    this.renderProfile();
     this.renderEmotions();
     this.renderTagGroups();
     this.renderPartner();
+  },
+
+  // === Profile ===
+
+  renderProfile() {
+    var nameEl = document.getElementById('settingsUserName');
+    var codeEl = document.getElementById('settingsMyCodeDisplay');
+    if (nameEl) nameEl.value = this.state.userName || '';
+    if (codeEl) codeEl.textContent = this.state.myCode || '—';
+  },
+
+  saveUserName() {
+    var nameEl = document.getElementById('settingsUserName');
+    if (!nameEl) return;
+    this.state.userName = nameEl.value.trim();
+    App.save();
+    App.updateHeader();
   },
 
   // === Emotions ===
