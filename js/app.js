@@ -1,0 +1,132 @@
+/* ===== app.js — Инициализация, навигация, утилиты ===== */
+
+const App = {
+  state: null,
+
+  init() {
+    this.state = Storage.load();
+
+    if (!this.state.myCode) {
+      this.state.myCode = Partner.generateCode();
+      Storage.save(this.state);
+    }
+
+    this.initNavigation();
+    this.initSettings();
+    this.updateHeader();
+    this.startClock();
+
+    // Init modules
+    Entry.init(this.state);
+    Analytics.init(this.state);
+    Streak.init(this.state);
+    Calendar.init(this.state);
+    History.init(this.state);
+    Achieve.init(this.state);
+    Partner.init(this.state);
+    Settings.init(this.state);
+
+    this.renderHomeWeekStats();
+  },
+
+  /** Tab navigation */
+  initNavigation() {
+    const buttons = document.querySelectorAll('.tab-bar__btn');
+    const panels = document.querySelectorAll('.tab-panel');
+
+    buttons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tabId = btn.dataset.tab;
+        if (!tabId) return;
+
+        buttons.forEach(b => b.classList.remove('active'));
+        panels.forEach(p => p.classList.remove('active'));
+
+        btn.classList.add('active');
+        const panel = document.getElementById(tabId);
+        if (panel) panel.classList.add('active');
+
+        window.scrollTo(0, 0);
+
+        // Refresh when switching tabs
+        if (tabId === 'tabNotes') History.render();
+        if (tabId === 'tabAnalytics') Analytics.render();
+        if (tabId === 'tabAchievements') Achieve.render();
+      });
+    });
+  },
+
+  /** Settings overlay */
+  initSettings() {
+    const btn = document.getElementById('settingsBtn');
+    const overlay = document.getElementById('settingsOverlay');
+    const back = document.getElementById('settingsBack');
+
+    if (btn) btn.addEventListener('click', () => overlay.classList.add('active'));
+    if (back) back.addEventListener('click', () => overlay.classList.remove('active'));
+  },
+
+  updateHeader() {
+    const crystalsEl = document.getElementById('headerCrystals');
+    if (crystalsEl) crystalsEl.textContent = '💎 ' + (this.state.crystals || 0);
+  },
+
+  startClock() {
+    const timeEl = document.getElementById('headerTime');
+    const update = () => {
+      const now = new Date();
+      timeEl.textContent = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+    };
+    update();
+    setInterval(update, 30000);
+  },
+
+  switchTab(tabId) {
+    const btn = document.querySelector('.tab-bar__btn[data-tab="' + tabId + '"]');
+    if (btn) btn.click();
+  },
+
+  /** Save state + refresh widgets */
+  save() {
+    Storage.save(this.state);
+    this.updateHeader();
+    Streak.calculateStreak();
+    Streak.render();
+    Calendar.render();
+    Achieve.checkAll();
+    Storage.save(this.state);
+    this.renderHomeWeekStats();
+  },
+
+  /** Render week stats on home screen */
+  renderHomeWeekStats() {
+    const el = document.getElementById('homeWeekStatsContent');
+    if (!el) return;
+
+    // Get this week's entries
+    const now = new Date();
+    const day = now.getDay();
+    const mondayOff = day === 0 ? 6 : day - 1;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - mondayOff);
+    monday.setHours(0, 0, 0, 0);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+
+    const entries = (this.state.entries || []).filter(e =>
+      e.ts >= monday.getTime() && e.ts <= sunday.getTime()
+    );
+
+    el.innerHTML = History.renderSummaryHTML(entries);
+  }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  App.init();
+
+  // Service Worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(function() {});
+  }
+});
